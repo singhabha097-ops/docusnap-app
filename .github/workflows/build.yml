@@ -47,27 +47,18 @@ jobs:
 
           cd temp_project
 
-          # Fix compileSdk and minSdk in app build.gradle
+          # Enforce SDK versions in app build.gradle
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 35/g' android/app/build.gradle* || true
           sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 35/g' android/app/build.gradle* || true
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/g' android/app/build.gradle* || true
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/g' android/app/build.gradle* || true
 
-          # Inject compileSdk 35 into all plugins (fixes 'gal' and older libraries)
-          cat << 'EOF' >> android/build.gradle
-
-          subprojects {
-              afterEvaluate { project ->
-                  if (project.hasProperty('android')) {
-                      project.android {
-                          compileSdkVersion 35
-                      }
-                  }
-              }
-          }
-          EOF
-
           flutter pub get
+
+          # Patch compileSdkVersion directly inside gal or any other cached plugin
+          find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -exec sed -i 's/compileSdkVersion null/compileSdkVersion 35/g' {} + || true
+          find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -exec sed -i 's/compileSdk null/compileSdk 35/g' {} + || true
+          find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -exec sed -i '/android {/a \    compileSdkVersion 35' {} + || true
 
       - name: Build Ads-Only Release APK
         run: |
