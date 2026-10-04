@@ -47,18 +47,24 @@ jobs:
 
           cd temp_project
 
-          # Enforce SDK versions in app build.gradle
+          # Enforce SDK versions in main app build.gradle
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 35/g' android/app/build.gradle* || true
           sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 35/g' android/app/build.gradle* || true
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/g' android/app/build.gradle* || true
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/g' android/app/build.gradle* || true
 
+          # Download dependencies first so .pub-cache is populated
           flutter pub get
 
-          # Patch compileSdkVersion directly inside gal or any other cached plugin
-          find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -exec sed -i 's/compileSdkVersion null/compileSdkVersion 35/g' {} + || true
-          find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -exec sed -i 's/compileSdk null/compileSdk 35/g' {} + || true
-          find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -exec sed -i '/android {/a \    compileSdkVersion 35' {} + || true
+          # Robust patch for 'gal' and other plugins missing compileSdkVersion
+          find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -type f -exec sed -i 's/compileSdkVersion\s*null/compileSdkVersion 35/g' {} + || true
+          find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -type f -exec sed -i 's/compileSdk\s*null/compileSdk 35/g' {} + || true
+
+          for file in $(find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -type f); do
+            if grep -q "android {" "$file" && ! grep -q "compileSdkVersion" "$file" && ! grep -q "compileSdk" "$file"; then
+              sed -i '/android {/a\    compileSdkVersion 35' "$file"
+            fi
+          done
 
       - name: Build Ads-Only Release APK
         run: |
