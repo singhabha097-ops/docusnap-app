@@ -13,6 +13,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Inspect files
+        run: ls -la
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -27,11 +30,25 @@ jobs:
 
       - name: Extract zip and setup project
         run: |
-          unzip docusnap_compress.zip
+          ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "No zip file detected in the repository!"
+            exit 1
+          fi
+          echo "Found zip file: $ZIP_FILE"
+          unzip -o "$ZIP_FILE" -d extracted_app
+
+          SRC_DIR=$(find extracted_app -name "pubspec.yaml" -exec dirname {} \;)
+          echo "Source directory is: $SRC_DIR"
+
           flutter create --org com.docusnap.compress temp_project
-          cp -r docusnap_compress/lib/* temp_project/lib/
-          cp docusnap_compress/pubspec.yaml temp_project/pubspec.yaml
-          cp docusnap_compress/android_config/AndroidManifest.xml temp_project/android/app/src/main/AndroidManifest.xml
+          cp -r "$SRC_DIR"/lib/* temp_project/lib/
+          cp "$SRC_DIR"/pubspec.yaml temp_project/pubspec.yaml
+
+          if [ -f "$SRC_DIR/android_config/AndroidManifest.xml" ]; then
+            cp "$SRC_DIR/android_config/AndroidManifest.xml" temp_project/android/app/src/main/AndroidManifest.xml
+          fi
+
           cd temp_project
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/g' android/app/build.gradle* || true
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/g' android/app/build.gradle* || true
