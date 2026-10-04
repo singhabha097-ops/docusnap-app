@@ -57,20 +57,16 @@ jobs:
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/g' android/app/build.gradle* || true
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/g' android/app/build.gradle* || true
 
-          # Download dependencies first so .pub-cache is populated
+          # Download dependencies
           flutter pub get
 
-          # Fix plugin build.gradle files where compileSdkVersion/compileSdk is null or missing
-          find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -type f | while read -r file; do
-            if grep -q "android {" "$file"; then
-              if ! grep -Eq "compileSdkVersion|compileSdk" "$file"; then
-                sed -i '/android {/a\    compileSdkVersion 35' "$file"
-              fi
-            fi
-
-            sed -i 's/compileSdkVersion[[:space:]]*null/compileSdkVersion 35/g' "$file" || true
-            sed -i 's/compileSdk[[:space:]]*null/compileSdk 35/g' "$file" || true
-          done
+          # Force compileSdk 35 inside the 'gal' plugin's build.gradle
+          GAL_GRADLE=$(find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" | grep gal)
+          if [ -f "$GAL_GRADLE" ]; then
+            echo "Patching $GAL_GRADLE"
+            sed -i 's/compileSdkVersion[[:space:]]*[^\n]*/compileSdkVersion 35/g' "$GAL_GRADLE" || true
+            sed -i 's/compileSdk[[:space:]]*[^\n]*/compileSdk 35/g' "$GAL_GRADLE" || true
+          fi
 
       - name: Build Ads-Only Release APK
         run: |
