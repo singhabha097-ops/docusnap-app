@@ -22,6 +22,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.24.5'
           channel: 'stable'
           cache: true
 
@@ -32,6 +33,7 @@ jobs:
             echo "No zip file detected!"
             exit 1
           fi
+          echo "Processing $ZIP_FILE"
           unzip -o "$ZIP_FILE" -d extracted_app
 
           SRC_DIR=$(find extracted_app -name "pubspec.yaml" -exec dirname {} \;)
@@ -46,7 +48,6 @@ jobs:
           cd temp_project
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/g' android/app/build.gradle* || true
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/g' android/app/build.gradle* || true
-          flutter pub add google_mobile_ads:^5.4.0
           flutter pub get
 
       - name: Build Ads-Only Release APK
