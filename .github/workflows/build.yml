@@ -28,15 +28,19 @@ jobs:
 
       - name: Extract zip and setup project
         run: |
+          set -euxo pipefail
+
           ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
           if [ -z "$ZIP_FILE" ]; then
             echo "No zip file detected!"
             exit 1
           fi
+
           echo "Processing $ZIP_FILE"
           unzip -o "$ZIP_FILE" -d extracted_app
 
           SRC_DIR=$(find extracted_app -name "pubspec.yaml" -exec dirname {} \;)
+
           flutter create --org com.docusnap.compress temp_project
           cp -r "$SRC_DIR"/lib/* temp_project/lib/
           cp "$SRC_DIR"/pubspec.yaml temp_project/pubspec.yaml
@@ -47,7 +51,7 @@ jobs:
 
           cd temp_project
 
-          # Enforce SDK versions in main app build.gradle
+          # Force SDKs in the main app build.gradle
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 35/g' android/app/build.gradle* || true
           sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 35/g' android/app/build.gradle* || true
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/g' android/app/build.gradle* || true
@@ -56,14 +60,16 @@ jobs:
           # Download dependencies first so .pub-cache is populated
           flutter pub get
 
-          # Robust patch for 'gal' and other plugins missing compileSdkVersion
-          find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -type f -exec sed -i 's/compileSdkVersion\s*null/compileSdkVersion 35/g' {} + || true
-          find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -type f -exec sed -i 's/compileSdk\s*null/compileSdk 35/g' {} + || true
-
-          for file in $(find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -type f); do
-            if grep -q "android {" "$file" && ! grep -q "compileSdkVersion" "$file" && ! grep -q "compileSdk" "$file"; then
-              sed -i '/android {/a\    compileSdkVersion 35' "$file"
+          # Fix plugin build.gradle files where compileSdkVersion/compileSdk is null or missing
+          find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" -type f | while read -r file; do
+            if grep -q "android {" "$file"; then
+              if ! grep -Eq "compileSdkVersion|compileSdk" "$file"; then
+                sed -i '/android {/a\    compileSdkVersion 35' "$file"
+              fi
             fi
+
+            sed -i 's/compileSdkVersion[[:space:]]*null/compileSdkVersion 35/g' "$file" || true
+            sed -i 's/compileSdk[[:space:]]*null/compileSdk 35/g' "$file" || true
           done
 
       - name: Build Ads-Only Release APK
