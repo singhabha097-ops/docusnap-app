@@ -39,7 +39,13 @@ jobs:
           echo "Processing $ZIP_FILE"
           unzip -o "$ZIP_FILE" -d extracted_app
 
-          SRC_DIR=$(find extracted_app -name "pubspec.yaml" -exec dirname {} \;)
+          SRC_DIR=$(find extracted_app -name "pubspec.yaml" -exec dirname {} \; | head -n 1)
+          if [ -z "$SRC_DIR" ]; then
+            echo "No pubspec.yaml found in extracted zip"
+            exit 1
+          fi
+
+          echo "Using source directory: $SRC_DIR"
 
           flutter create --org com.docusnap.compress temp_project
           cp -r "$SRC_DIR"/lib/* temp_project/lib/
@@ -61,11 +67,14 @@ jobs:
           flutter pub get
 
           # Force compileSdk 35 inside the 'gal' plugin's build.gradle
-          GAL_GRADLE=$(find /home/runner/.pub-cache/hosted/pub.dev -name "build.gradle" | grep gal)
-          if [ -f "$GAL_GRADLE" ]; then
+          GAL_GRADLE=$(find /home/runner/.pub-cache/hosted/pub.dev -path '*gal*' -name 'build.gradle' | head -n 1)
+          if [ -n "$GAL_GRADLE" ] && [ -f "$GAL_GRADLE" ]; then
             echo "Patching $GAL_GRADLE"
-            sed -i 's/compileSdkVersion[[:space:]]*[^\n]*/compileSdkVersion 35/g' "$GAL_GRADLE" || true
-            sed -i 's/compileSdk[[:space:]]*[^\n]*/compileSdk 35/g' "$GAL_GRADLE" || true
+            sed -i '/^[[:space:]]*compileSdkVersion/d' "$GAL_GRADLE"
+            sed -i '/^[[:space:]]*compileSdk/d' "$GAL_GRADLE"
+            sed -i '/^android {/a\    compileSdkVersion 35' "$GAL_GRADLE"
+          else
+            echo "No gal build.gradle found in pub cache"
           fi
 
       - name: Build Ads-Only Release APK
